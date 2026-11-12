@@ -1,0 +1,9 @@
+node_modules/
+.vite/
+out/
+coverage/
+test-results/
+playwright-report/
+*.sqlite*
+.DS_Store
+.idea/

@@ -1,0 +1,38 @@
+:root {
+  color-scheme: light;
+  --canvas: #f6f7f3;
+  --ink: #344439;
+  --muted: #939c90;
+  --green: #345e49;
+  --line: #e5eae0;
+}
+.sage {
+  --bar-bg: #dce9d4;
+  --bar-text: #5a7a45;
+  --bar-border: #cbdcbc;
+}
+.blue {
+  --bar-bg: #dee9f1;
+  --bar-text: #5c819b;
+  --bar-border: #cbdce8;
+}
+.amber {
+  --bar-bg: #f3e7ce;
+  --bar-text: #b08c4c;
+  --bar-border: #e8d8b7;
+}
+.violet {
+  --bar-bg: #e6e2f0;
+  --bar-text: #8b7ba7;
+  --bar-border: #d7cfe5;
+}
+.rose {
+  --bar-bg: #f1dfde;
+  --bar-text: #b17e7c;
+  --bar-border: #e8cfcd;
+}
+.teal {
+  --bar-bg: #d9eae4;
+  --bar-text: #5a8e7c;
+  --bar-border: #c4ded4;
+}
