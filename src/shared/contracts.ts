@@ -9,7 +9,7 @@ export interface Task {
 
 export type CreateTask = Pick<Task, 'name' | 'start_time' | 'end_time' | 'assign'>;
 export type UpdateTask = Partial<CreateTask>;
-export type ErrorCode = 'INVALID_INPUT' | 'NOT_FOUND' | 'STORAGE_ERROR';
+export type ErrorCode = 'INVALID_INPUT' | 'NOT_FOUND' | 'STORAGE_ERROR' | 'LLM_CONFIG_MISSING' | 'LLM_REQUEST_FAILED' | 'LLM_RESPONSE_INVALID';
 export type Result<T> = { ok: true; data: T } | { ok: false; error: { code: ErrorCode; message: string } };
 
 export type Theme = 'light' | 'dark';
@@ -25,6 +25,11 @@ export interface SettingsAPI {
   get(): Promise<Result<Settings>>;
   save(input: Settings): Promise<Result<Settings>>;
   onOpen(listener: () => void): () => void;
+}
+
+export type AssistantResult = { kind: 'create_tasks'; tasks: CreateTask[] } | { kind: 'unsupported'; message: string };
+export interface AssistantAPI {
+  parse(text: string): Promise<Result<AssistantResult>>;
 }
 
 /** All input adapters use these operations. No renderer action is required by the task service. */
@@ -46,4 +51,5 @@ export const CHANNELS = {
   getTheme: 'settings:theme',
   saveSettings: 'settings:save',
   openSettings: 'settings:open',
+  parseAssistant: 'assistant:parse',
 } as const;

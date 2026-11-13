@@ -6,6 +6,7 @@ import { TimelineControls, safeShift, type TimelineView } from './TimelineContro
 import { Icon } from './icons';
 import { DeleteConfirmation, TaskEditor } from './TaskEditor';
 import { SettingsDialog } from './SettingsDialog';
+import { AssistantInput } from './AssistantInput';
 
 async function unwrap<T>(request: Promise<Result<T>>): Promise<T> {
   const result = await request;
@@ -315,6 +316,17 @@ export function App() {
             </div>
           </section>
         </div>
+        <AssistantInput
+          blocked={!!editor || !!deleting || settingsOpen}
+          disabled={loading || busy}
+          onSettings={() => setSettingsOpen(true)}
+          onNotice={setNotice}
+          onCreate={async (input) => {
+            await mutate(async () => {
+              replaceTask(await unwrap(window.tasks.create(input)));
+            });
+          }}
+        />
       </main>
       {notice && (
         <div className="toast" role="status">

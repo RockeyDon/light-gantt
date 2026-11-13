@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import type { CreateTask, Task } from '../shared/contracts';
 import { today } from '../shared/dates';
 import { Icon } from './icons';
@@ -8,27 +8,41 @@ export function TaskEditor({
   onClose,
   onSave,
   onDelete,
+  draft,
+  progress,
+  onEndBatch,
+  active = true,
 }: {
   task: Task | null;
   onClose: () => void;
   onSave: (input: CreateTask) => Promise<void>;
   onDelete: (task: Task) => void;
+  draft?: CreateTask;
+  progress?: string;
+  onEndBatch?: () => void;
+  active?: boolean;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
-  const [name, setName] = useState(task?.name ?? '');
-  const [assign, setAssign] = useState(task?.assign ?? '');
-  const [start, setStart] = useState(task?.start_time ?? today());
-  const [end, setEnd] = useState(task?.end_time ?? '');
+  const titleId = useId();
+  const [name, setName] = useState(task?.name ?? draft?.name ?? '');
+  const [assign, setAssign] = useState(task?.assign ?? draft?.assign ?? '');
+  const [start, setStart] = useState(task?.start_time ?? draft?.start_time ?? today());
+  const [end, setEnd] = useState(task?.end_time ?? draft?.end_time ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const saveLock = useRef(false);
 
   useEffect(() => {
-    dialog.current?.showModal();
-  }, []);
+    const element = dialog.current!;
+    if (active) element.showModal();
+    else element.close();
+    return () => element.close();
+  }, [active]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (saving) return;
+    if (saveLock.current) return;
+    saveLock.current = true;
     setSaving(true);
     setError('');
     try {
@@ -37,6 +51,7 @@ export function TaskEditor({
     } catch (error) {
       setError(error instanceof Error ? error.message : '保存失败，请重试');
       setSaving(false);
+      saveLock.current = false;
     }
   }
 
@@ -44,10 +59,10 @@ export function TaskEditor({
     <dialog
       ref={dialog}
       className="modal"
-      aria-labelledby="editor-title"
+      aria-labelledby={titleId}
       onCancel={(event) => {
         event.preventDefault();
-        if (!saving) onClose();
+        if (!saveLock.current) onClose();
       }}
     >
       <form
@@ -57,8 +72,8 @@ export function TaskEditor({
       >
         <div className="modal-heading">
           <div>
-            <span className="eyebrow">TASK DETAILS</span>
-            <h2 id="editor-title">{task ? '编辑任务' : '安排一个新任务'}</h2>
+            <span className="eyebrow">{progress ?? 'TASK DETAILS'}</span>
+            <h2 id={titleId}>{task ? '编辑任务' : draft ? '确认新任务' : '安排一个新任务'}</h2>
           </div>
           <button type="button" className="icon-button" aria-label="关闭编辑" disabled={saving} onClick={onClose}>
             <Icon name="close" />
@@ -96,9 +111,14 @@ export function TaskEditor({
               删除任务
             </button>
           )}
+          {onEndBatch && (
+            <button type="button" className="text-button" disabled={saving} onClick={onEndBatch}>
+              结束本次
+            </button>
+          )}
           <div className="modal-actions">
             <button type="button" className="button secondary" disabled={saving} onClick={onClose}>
-              取消
+              {draft ? '跳过' : '取消'}
             </button>
             <button type="submit" className="button primary" disabled={saving}>
               {saving ? '保存中…' : task ? '保存修改' : '创建任务'}

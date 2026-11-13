@@ -1,5 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import { CHANNELS, type SettingsAPI, type TaskAPI } from '../shared/contracts';
+import { CHANNELS, type AssistantAPI, type SettingsAPI, type TaskAPI } from '../shared/contracts';
+
+const assistant: AssistantAPI = { parse: (text) => ipcRenderer.invoke(CHANNELS.parseAssistant, text) };
+contextBridge.exposeInMainWorld('assistant', assistant);
 
 const tasks: TaskAPI = {
   list: (isDone) => ipcRenderer.invoke(CHANNELS.list, isDone),

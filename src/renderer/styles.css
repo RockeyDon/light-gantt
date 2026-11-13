@@ -827,7 +827,7 @@ td .assignee-dot {
 }
 .toast {
   position: fixed;
-  bottom: 31px;
+  bottom: 76px;
   left: 50%;
   transform: translateX(-50%);
   padding: 10px 19px 10px 12px;
@@ -842,6 +842,64 @@ td .assignee-dot {
   color: var(--success);
   font-size: 12px;
   animation: toast-in 0.2s ease-out;
+}
+
+.assistant-input {
+  flex-shrink: 0;
+  margin-top: 8px;
+}
+.assistant-composer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 3px 6px 3px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.assistant-composer:focus-within {
+  border-color: var(--green);
+}
+.assistant-composer textarea {
+  flex: 1;
+  min-width: 0;
+  field-sizing: content;
+  max-height: 90px;
+  resize: none;
+  border: 0;
+  padding: 4px 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  outline: none;
+}
+.assistant-composer textarea::placeholder {
+  color: var(--muted);
+}
+.assistant-status {
+  font-size: 11px;
+  color: var(--ink-secondary);
+}
+.assistant-error {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-height: 64px;
+  overflow: auto;
+  margin-bottom: 6px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: 11px;
+}
+.assistant-error span {
+  flex: 1;
+}
+.assistant-error button {
+  flex-shrink: 0;
 }
 .toast-check {
   background: var(--accent-soft);
@@ -995,6 +1053,18 @@ td .assignee-dot {
 @media (prefers-reduced-motion: reduce) {
   .toast {
     animation: none;
+  }
+}
+
+@media (max-height: 660px) {
+  .gantt-row {
+    height: 44px;
+  }
+  .task-bar {
+    top: 8px;
+  }
+  .offscreen-task {
+    top: 11px;
   }
 }
 

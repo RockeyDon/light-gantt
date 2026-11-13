@@ -34,6 +34,8 @@ async function tasks(page: Page): Promise<Task[]> {
 
 async function dragBar(page: Page, id: string, delta: number, edge?: 'start' | 'end') {
   const bar = page.getByTestId(`bar-${id}`);
+  await expect(bar).toBeEnabled();
+  await expect(page.getByTestId(`task-${id}`)).not.toHaveClass(/is-dragging/);
   await bar.scrollIntoViewIfNeeded();
   const target = edge ? bar.locator(`[data-edge=${edge}]`) : bar;
   const box = await target.boundingBox();
@@ -442,6 +444,7 @@ test('settings gear, native menu and shortcut persist encrypted model credential
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
     expect(await tasks(page)).toHaveLength(6);
     await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].close());
+    await expect.poll(() => application!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(0);
     const nextWindow = application.waitForEvent('window');
     await application.evaluate(({ Menu }) => {
       Menu.getApplicationMenu()!

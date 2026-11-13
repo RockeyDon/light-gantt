@@ -143,9 +143,16 @@ export function Gantt({
     const current = drag.current;
     drag.current = null;
     if (!current?.moved) return;
-    if (preview && (preview.start_time !== current.task.start_time || preview.end_time !== current.task.end_time)) {
-      void onUpdate(current.task, { start_time: preview.start_time, end_time: preview.end_time }).finally(() => setPreview(null));
-    } else setPreview(null);
+    // Pointer-up can arrive before React commits the final preview render.
+    // Use the pointer state so a quick second drag never depends on that render.
+    try {
+      const patch = shiftTask(current.task.start_time, current.task.end_time, current.mode, current.delta, today);
+      if (patch.start_time !== current.task.start_time || patch.end_time !== current.task.end_time) {
+        void onUpdate(current.task, patch).finally(() => setPreview(null));
+      } else setPreview(null);
+    } catch {
+      setPreview(null);
+    }
   }
 
   function focus(date: string) {

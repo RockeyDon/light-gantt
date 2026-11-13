@@ -20,8 +20,9 @@ const fields = {
   end_time: dateSchema.nullable(),
   assign: z.string().trim(),
 };
-const createSchema = z.object(fields).strict();
-const updateSchema = createSchema
+const taskFieldsSchema = z.object(fields).strict();
+export const createTaskSchema = taskFieldsSchema.refine((task) => task.end_time === null || task.end_time >= task.start_time, '结束日期不能早于开始日期');
+const updateSchema = taskFieldsSchema
   .partial()
   .refine((value) => Object.keys(value).length > 0, '请提供要修改的字段')
   .refine((value) => Object.values(value).every((field) => field !== undefined), '修改字段不能是 undefined，请用 null 清空结束日期');
@@ -59,8 +60,7 @@ export class TaskService {
   }
 
   create(input: unknown): Task {
-    const data = parse(createSchema, input);
-    this.checkRange(data);
+    const data = parse(createTaskSchema, input);
     const task: Task = { ...data, id: randomUUID(), is_done: false };
     this.db
       .prepare('INSERT INTO gantt (id, name, start_time, end_time, assign, is_done) VALUES (?, ?, ?, ?, ?, 0)')
