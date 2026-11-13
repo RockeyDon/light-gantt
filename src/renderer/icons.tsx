@@ -13,6 +13,7 @@ const paths = {
   arrow: 'M5 12h14m-5-5 5 5-5 5',
   clock: 'M12 8v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0',
   warning: 'm12 3 10 18H2L12 3ZM12 9v5M12 17v.1',
+  settings: 'm9 3 6 0 .5 3 2 1 2.5-1 3 5-2.5 1.5v2L23 16l-3 5-2.5-1-2 1-.5 2H9l-.5-2-2-1L4 21l-3-5 2.5-1.5v-2L1 11l3-5 2.5 1 2-1L9 3Z M15 13a3 3 0 1 1-6 0 3 3 0 0 1 6 0',
 };
 
 export function Icon({ name, size = 18, style }: { name: keyof typeof paths; size?: number; style?: CSSProperties }) {

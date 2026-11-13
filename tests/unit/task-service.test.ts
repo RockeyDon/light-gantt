@@ -89,14 +89,14 @@ describe('TaskService', () => {
   });
 });
 
-describe('database migrations and persistence', () => {
+describe('database initialization and persistence', () => {
   it('creates the completion/date index and reopens existing data without recreating the schema', () => {
     const directory = mkdtempSync(path.join(tmpdir(), 'light-gantt-db-'));
     const filename = path.join(directory, 'gantt.sqlite');
     let disk = openDatabase(filename);
     try {
       const task = new TaskService(disk).create(input);
-      expect(disk.pragma('user_version', { simple: true })).toBe(1);
+      expect(disk.pragma('user_version', { simple: true })).toBe(2);
       expect(disk.prepare('PRAGMA index_info(idx_gantt_done_start)').all()).toMatchObject([{ name: 'is_done' }, { name: 'start_time' }]);
       disk.close();
       disk = openDatabase(filename);
@@ -111,7 +111,7 @@ describe('database migrations and persistence', () => {
     const directory = mkdtempSync(path.join(tmpdir(), 'light-gantt-version-'));
     const filename = path.join(directory, 'gantt.sqlite');
     const future = new Database(filename);
-    future.pragma('user_version = 2');
+    future.pragma('user_version = 3');
     future.close();
     try {
       expect(() => openDatabase(filename)).toThrow('数据库版本高于此应用支持的版本');

@@ -336,3 +336,169 @@ test('compact cards expose all tasks, resize to both edges, and keep dates clear
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test('settings gear, native menu and shortcut persist encrypted model credentials and both themes', async () => {
+  const directory = mkdtempSync(path.join(tmpdir(), 'light-gantt-preferences-'));
+  let application: ElectronApplication | undefined;
+  try {
+    let running = await launch(directory);
+    application = running.application;
+    let page = running.page;
+    const gear = page.getByRole('button', { name: '配置', exact: true });
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+    await gear.click();
+    const settings = page.getByRole('dialog', { name: '配置', exact: true });
+    await expect(settings.getByLabel('接口地址')).toHaveValue('');
+    await expect(settings.getByRole('radio', { name: '浅色', exact: true })).toBeChecked();
+    await settings.getByRole('radio', { name: '深色', exact: true }).check();
+    await settings.getByLabel('模型名称').fill('discarded');
+    await settings.getByRole('button', { name: '取消', exact: true }).click();
+    await expect(gear).toBeFocused();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+
+    await page.keyboard.press('Meta+,');
+    await expect(settings).toBeVisible();
+    await expect(settings.getByLabel('模型名称')).toHaveValue('');
+    await page.keyboard.press('Meta+,');
+    await expect(settings).toHaveCount(1);
+    await settings.getByLabel('接口地址').fill('https://api.example.com/v1');
+    await settings.getByLabel('API 密钥').fill('e2e-test-secret');
+    await expect(settings.getByLabel('API 密钥')).toHaveAttribute('type', 'password');
+    await settings.getByLabel('模型名称').fill('example-model');
+    await settings.getByRole('radio', { name: '深色', exact: true }).check();
+    await settings.getByRole('button', { name: '保存', exact: true }).click();
+    await expect(settings).toHaveCount(0);
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    expect(await application.evaluate(({ nativeTheme }) => nativeTheme.themeSource)).toBe('dark');
+    expect(await page.evaluate(() => window.settings.get())).toEqual({
+      ok: true,
+      data: { LLM_BASE_URL: 'https://api.example.com/v1', LLM_API_KEY: 'e2e-test-secret', LLM_MODEL_ID: 'example-model', theme: 'dark' },
+    });
+    const encrypted = execFileSync(
+      'python3',
+      [
+        '-c',
+        [
+          'import sqlite3,sys',
+          'db=sqlite3.connect(sys.argv[1])',
+          'key=db.execute("SELECT llm_api_key FROM settings").fetchone()[0]',
+          'print(isinstance(key,bytes) and b"e2e-test-secret" not in key)',
+        ].join('; '),
+        path.join(directory, 'gantt.sqlite'),
+      ],
+      { encoding: 'utf8' },
+    ).trim();
+    expect(encrypted).toBe('True');
+    await page.reload();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await expect(page.getByRole('heading', { name: '任务计划' })).toBeVisible();
+
+    await page.evaluate(
+      async ({ date }) => {
+        for (const assign of ['', '小林', '陈晨', '林语', '周一', '设计']) {
+          const created = await window.tasks.create({ name: `主题任务 ${assign || '未分配'}`, assign, start_time: date, end_time: null });
+          if (!created.ok) throw new Error(created.error.message);
+        }
+      },
+      { date: today() },
+    );
+    await page.reload();
+    await expect(page.locator('.gantt-row')).toHaveCount(6);
+    await page.screenshot({ path: 'test-results/theme-dark.png' });
+    await page.getByRole('button', { name: '时间设置', exact: true }).click();
+    await page.screenshot({ path: 'test-results/theme-dark-time.png' });
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: '主题任务 小林', exact: true }).click();
+    await page.screenshot({ path: 'test-results/theme-dark-editor.png' });
+    await page.keyboard.press('Escape');
+
+    await application.close();
+    application = undefined;
+    running = await launch(directory);
+    application = running.application;
+    page = running.page;
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await application.evaluate(({ Menu }) => {
+      const item = Menu.getApplicationMenu()!.items[0].submenu!.items.find((item) => item.label === '配置…')!;
+      if (item.accelerator !== 'CmdOrCtrl+,') throw new Error('Missing settings accelerator');
+      item.click();
+    });
+    const reopened = page.getByRole('dialog', { name: '配置', exact: true });
+    await expect(reopened.getByLabel('API 密钥')).toHaveValue('e2e-test-secret');
+    await expect(reopened.getByLabel('模型名称')).toHaveValue('example-model');
+    await expect(reopened.getByRole('radio', { name: '深色', exact: true })).toBeChecked();
+    await page.screenshot({ path: 'test-results/settings-dark.png' });
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Meta+,');
+    await reopened.getByRole('radio', { name: '浅色', exact: true }).check();
+    await reopened.getByRole('button', { name: '保存', exact: true }).click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+    await page.screenshot({ path: 'test-results/theme-light.png' });
+    await application.close();
+    application = undefined;
+    running = await launch(directory);
+    application = running.application;
+    page = running.page;
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+    expect(await tasks(page)).toHaveLength(6);
+    await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].close());
+    const nextWindow = application.waitForEvent('window');
+    await application.evaluate(({ Menu }) => {
+      Menu.getApplicationMenu()!
+        .items[0].submenu!.items.find((item) => item.label === '配置…')!
+        .click();
+    });
+    page = await nextWindow;
+    await expect(page.getByRole('dialog', { name: '配置', exact: true }).getByLabel('模型名称')).toHaveValue('example-model');
+  } finally {
+    await application?.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('settings reject invalid IPC input and retain unsaved fields and theme on storage failure', async () => {
+  const directory = mkdtempSync(path.join(tmpdir(), 'light-gantt-settings-errors-'));
+  let application: ElectronApplication | undefined;
+  try {
+    const running = await launch(directory);
+    application = running.application;
+    const page = running.page;
+    const invalid = await page.evaluate(() =>
+      window.settings.save({
+        LLM_BASE_URL: 'file:///tmp/model',
+        LLM_API_KEY: '',
+        LLM_MODEL_ID: '',
+        theme: 'dark',
+      }),
+    );
+    expect(invalid).toMatchObject({ ok: false, error: { code: 'INVALID_INPUT' } });
+    execFileSync('python3', [
+      '-c',
+      [
+        'import sqlite3,sys',
+        'db=sqlite3.connect(sys.argv[1])',
+        'db.execute("CREATE TRIGGER reject_settings BEFORE UPDATE ON settings BEGIN SELECT RAISE(FAIL, \'injected failure\'); END")',
+        'db.commit()',
+        'db.close()',
+      ].join('; '),
+      path.join(directory, 'gantt.sqlite'),
+    ]);
+    await page.getByRole('button', { name: '配置', exact: true }).click();
+    const settings = page.getByRole('dialog', { name: '配置', exact: true });
+    await settings.getByLabel('模型名称').fill('保留未保存的模型');
+    await settings.getByRole('radio', { name: '深色', exact: true }).check();
+    await settings.getByRole('button', { name: '保存', exact: true }).click();
+    await expect(settings.getByRole('alert')).toContainText('保存或读取失败');
+    await expect(settings.getByLabel('模型名称')).toHaveValue('保留未保存的模型');
+    await expect(settings.getByRole('radio', { name: '深色', exact: true })).toBeChecked();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+    expect(await application.evaluate(({ nativeTheme }) => nativeTheme.themeSource)).toBe('light');
+    expect(await page.evaluate(() => window.settings.get())).toMatchObject({ ok: true, data: { theme: 'light', LLM_MODEL_ID: '' } });
+    await page.keyboard.press('Escape');
+    await expect(settings).toHaveCount(0);
+    await expect(page.getByRole('button', { name: '配置', exact: true })).toBeFocused();
+  } finally {
+    await application?.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});

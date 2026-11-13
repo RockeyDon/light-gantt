@@ -5,6 +5,32 @@
   --muted: #939c90;
   --green: #345e49;
   --line: #e5eae0;
+  --surface: #fff;
+  --surface-subtle: #fbfcfa;
+  --surface-raised: #f2f4f1;
+  --hover: #eef2ef;
+  --accent-soft: #edf4ed;
+  --grid-line: #edf0eb;
+  --ink-secondary: #77867a;
+  --success: #668b6c;
+  --primary-hover: #214f3e;
+  --on-primary: #fff;
+  --on-destructive: #fff;
+  --focus: #abc8bc;
+  --scrollbar: #cbd6c7;
+  --warning: #b27c50;
+  --warning-bg: #fff3ec;
+  --warning-line: #edd7c8;
+  --danger: #ac654d;
+  --danger-bg: #fcf0e9;
+  --destructive: #b37059;
+  --destructive-hover: #9d5c46;
+  --weekend: #71805306;
+  --now-line: #d49a75;
+  --shadow-soft: #223b2910;
+  --shadow: #243e291a;
+  --shadow-strong: #263e2924;
+  --backdrop: #26372d44;
 }
 .sage {
   --bar-bg: #dce9d4;
@@ -35,4 +61,68 @@
   --bar-bg: #d9eae4;
   --bar-text: #5a8e7c;
   --bar-border: #c4ded4;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --canvas: #181d1a;
+  --ink: #dde7df;
+  --muted: #92a296;
+  --green: #9cc5a8;
+  --line: #37443b;
+  --surface: #222a25;
+  --surface-subtle: #263029;
+  --surface-raised: #2d3830;
+  --hover: #344239;
+  --accent-soft: #304737;
+  --grid-line: #303b33;
+  --ink-secondary: #adbdaf;
+  --success: #9cc5a8;
+  --primary-hover: #b2d7bd;
+  --on-primary: #182a1d;
+  --focus: #86b496;
+  --scrollbar: #4d6052;
+  --warning: #e5ae83;
+  --warning-bg: #3c3026;
+  --warning-line: #66503b;
+  --danger: #e0a18d;
+  --danger-bg: #412e28;
+  --destructive: #9f5b48;
+  --destructive-hover: #b26954;
+  --weekend: #9cba8508;
+  --now-line: #d49a75;
+  --shadow-soft: #00000020;
+  --shadow: #00000030;
+  --shadow-strong: #00000055;
+  --backdrop: #00000077;
+}
+[data-theme='dark'] .sage {
+  --bar-bg: #354a32;
+  --bar-text: #b5d4a1;
+  --bar-border: #4d6845;
+}
+[data-theme='dark'] .blue {
+  --bar-bg: #2e4353;
+  --bar-text: #b0cfe4;
+  --bar-border: #476477;
+}
+[data-theme='dark'] .amber {
+  --bar-bg: #4b4029;
+  --bar-text: #e5c58b;
+  --bar-border: #6b5937;
+}
+[data-theme='dark'] .violet {
+  --bar-bg: #40384e;
+  --bar-text: #cfc0e5;
+  --bar-border: #5e5273;
+}
+[data-theme='dark'] .rose {
+  --bar-bg: #4d3535;
+  --bar-text: #e3b8b6;
+  --bar-border: #704e4c;
+}
+[data-theme='dark'] .teal {
+  --bar-bg: #2d4640;
+  --bar-text: #a5d5c4;
+  --bar-border: #45665b;
 }

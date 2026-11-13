@@ -5,6 +5,7 @@ import { Gantt, taskColor } from './Gantt';
 import { TimelineControls, safeShift, type TimelineView } from './TimelineControls';
 import { Icon } from './icons';
 import { DeleteConfirmation, TaskEditor } from './TaskEditor';
+import { SettingsDialog } from './SettingsDialog';
 
 async function unwrap<T>(request: Promise<Result<T>>): Promise<T> {
   const result = await request;
@@ -24,6 +25,7 @@ export function App() {
   const [notice, setNotice] = useState('');
   const [editor, setEditor] = useState<{ task: Task | null } | null>(null);
   const [deleting, setDeleting] = useState<Task | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [completedHeight, setCompletedHeight] = useState(36);
   const [workspaceHeight, setWorkspaceHeight] = useState(0);
   const [timeline, setTimeline] = useState<TimelineView>(() => ({ anchor: safeShift(today(), -7), scale: 'day' }));
@@ -47,6 +49,20 @@ export function App() {
   useEffect(() => {
     void load();
   }, [load]);
+  useEffect(() => {
+    const unsubscribe = window.settings.onOpen(() => setSettingsOpen(true));
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey && event.key === ',') {
+        event.preventDefault();
+        setSettingsOpen(true);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      unsubscribe();
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, []);
   useEffect(() => {
     const timer = window.setInterval(() => setCurrentDay(today()), 30_000);
     const focus = () => setCurrentDay(today());
@@ -161,6 +177,9 @@ export function App() {
             <button className="button primary create-task" disabled={loading || busy} onClick={() => setEditor({ task: null })}>
               <Icon name="plus" size={16} />
               新建任务
+            </button>
+            <button className="icon-button" aria-label="配置" title="配置（⌘,）" onClick={() => setSettingsOpen(true)}>
+              <Icon name="settings" size={18} />
             </button>
           </div>
         </div>
@@ -307,6 +326,7 @@ export function App() {
       )}
       {editor && <TaskEditor task={editor.task} onClose={() => setEditor(null)} onSave={save} onDelete={setDeleting} />}
       {deleting && <DeleteConfirmation task={deleting} onClose={() => setDeleting(null)} onConfirm={removeTask} />}
+      {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
     </div>
   );
 }

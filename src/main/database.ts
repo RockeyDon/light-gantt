@@ -4,7 +4,8 @@ export function openDatabase(filename: string): Database.Database {
   const db = new Database(filename);
   try {
     const version = db.pragma('user_version', { simple: true }) as number;
-    if (version > 1) throw new Error('数据库版本高于此应用支持的版本，请使用较新的轻甘特');
+    if (version > 2) throw new Error('数据库版本高于此应用支持的版本，请使用较新的轻甘特');
+    if (version === 1) throw new Error('开发数据库结构已更新，请关闭应用并删除旧的 gantt.sqlite、gantt.sqlite-wal 和 gantt.sqlite-shm 后重启');
     db.pragma('journal_mode = WAL');
     db.pragma('busy_timeout = 5000');
     if (version === 0) {
@@ -20,7 +21,15 @@ export function openDatabase(filename: string): Database.Database {
             CHECK (end_time IS NULL OR end_time >= start_time)
           );
           CREATE INDEX idx_gantt_done_start ON gantt (is_done, start_time);
-          PRAGMA user_version = 1;
+          CREATE TABLE settings (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            llm_base_url TEXT NOT NULL DEFAULT '',
+            llm_api_key BLOB,
+            llm_model_id TEXT NOT NULL DEFAULT '',
+            theme TEXT NOT NULL DEFAULT 'light' CHECK (theme IN ('light', 'dark'))
+          );
+          INSERT INTO settings (id) VALUES (1);
+          PRAGMA user_version = 2;
         `);
       })();
     }
