@@ -6,6 +6,7 @@ export function openDatabase(filename: string): Database.Database {
     const version = db.pragma('user_version', { simple: true }) as number;
     if (version > 2) throw new Error('数据库版本高于此应用支持的版本，请使用较新的轻甘特');
     if (version === 1) throw new Error('开发数据库结构已更新，请关闭应用并删除旧的 gantt.sqlite、gantt.sqlite-wal 和 gantt.sqlite-shm 后重启');
+    db.pragma('foreign_keys = ON');
     db.pragma('journal_mode = WAL');
     db.pragma('busy_timeout = 5000');
     if (version === 0) {
@@ -33,6 +34,15 @@ export function openDatabase(filename: string): Database.Database {
         `);
       })();
     }
+    // Development schema: add daily progress directly to both existing and new databases.
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS task_progress (
+        task_id TEXT NOT NULL REFERENCES gantt(id) ON DELETE CASCADE,
+        date TEXT NOT NULL,
+        content TEXT NOT NULL CHECK (length(trim(content)) > 0),
+        PRIMARY KEY (task_id, date)
+      );
+    `);
     return db;
   } catch (error) {
     db.close();

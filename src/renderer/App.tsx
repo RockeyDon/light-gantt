@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
-import type { CreateTask, Result, Task, UpdateTask } from '../shared/contracts';
+import type { CreateTask, DailyProgress, Result, SaveProgress, Task, UpdateTask } from '../shared/contracts';
 import { chineseDate, today } from '../shared/dates';
 import { Gantt, taskColor } from './Gantt';
 import { TimelineControls, safeShift, type TimelineView } from './TimelineControls';
 import { Icon } from './icons';
 import { DeleteConfirmation, TaskEditor } from './TaskEditor';
 import { SettingsDialog } from './SettingsDialog';
+import { ProgressDialog } from './ProgressEditor';
+import { TaskContextMenu } from './TaskContextMenu';
 import { AssistantInput } from './AssistantInput';
 
 async function unwrap<T>(request: Promise<Result<T>>): Promise<T> {
@@ -20,6 +22,10 @@ function sortTasks(tasks: Task[]): Task[] {
 
 export function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [records, setRecords] = useState<DailyProgress[]>([]);
+  const [progressEditor, setProgressEditor] = useState<{ task: Task; date: string } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ task: Task; x: number; y: number } | null>(null);
+  const closeContextMenu = useCallback(() => setContextMenu(null), []);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -39,7 +45,9 @@ export function App() {
     setLoading(true);
     setError('');
     try {
-      setTasks(await unwrap(window.tasks.list()));
+      const [loadedTasks, loadedProgress] = await Promise.all([unwrap(window.tasks.list()), unwrap(window.progress.list())]);
+      setTasks(loadedTasks);
+      setRecords(loadedProgress);
     } catch (error) {
       setError(error instanceof Error ? error.message : '读取任务失败，请重试');
     } finally {
@@ -116,6 +124,26 @@ export function App() {
     });
   }
 
+  async function saveProgress(input: SaveProgress) {
+    await mutate(async () => {
+      const saved = await unwrap(window.progress.save(input));
+      setRecords((previous) => [...previous.filter((record) => record.task_id !== saved.task_id || record.date !== saved.date), saved]);
+      setNotice('进展已保存');
+    });
+  }
+
+  async function deleteProgress(record: DailyProgress) {
+    await mutate(async () => {
+      await unwrap(window.progress.remove(record));
+      setRecords((previous) => previous.filter((item) => item.task_id !== record.task_id || item.date !== record.date));
+      setNotice('进展已删除');
+    });
+  }
+
+  function openContext(task: Task, x: number, y: number) {
+    if (!busy && !loading) setContextMenu({ task, x, y });
+  }
+
   async function updateDates(task: Task, patch: UpdateTask) {
     try {
       await mutate(async () => {
@@ -149,6 +177,7 @@ export function App() {
     await mutate(async () => {
       await unwrap(window.tasks.remove(deleting.id));
       setTasks((previous) => previous.filter((task) => task.id !== deleting.id));
+      setRecords((previous) => previous.filter((record) => record.task_id !== deleting.id));
       setDeleting(null);
       setEditor(null);
       setNotice('任务已删除');
@@ -205,6 +234,9 @@ export function App() {
         <div className="workspace" ref={workspace} style={{ '--completed-height': `${completedHeight}px` } as CSSProperties}>
           <Gantt
             tasks={active}
+            records={records}
+            onProgress={(task, date) => setProgressEditor({ task, date })}
+            onContextMenu={openContext}
             view={timeline}
             onViewChange={setTimeline}
             collapsed={completedHeight >= maxCompletedHeight}
@@ -277,7 +309,13 @@ export function App() {
                   </thead>
                   <tbody>
                     {completed.map((task) => (
-                      <tr key={task.id}>
+                      <tr
+                        key={task.id}
+                        onContextMenu={(event) => {
+                          event.preventDefault();
+                          openContext(task, event.clientX, event.clientY);
+                        }}
+                      >
                         <td>
                           <button className="completed-name" disabled={busy} onClick={() => setEditor({ task })}>
                             <span className="done-check">
@@ -317,7 +355,11 @@ export function App() {
           </section>
         </div>
         <AssistantInput
-          blocked={!!editor || !!deleting || settingsOpen}
+          blocked={!!editor || !!deleting || !!progressEditor || settingsOpen}
+          tasks={tasks}
+          records={records}
+          onSaveProgress={saveProgress}
+          onDeleteProgress={deleteProgress}
           disabled={loading || busy}
           onSettings={() => setSettingsOpen(true)}
           onNotice={setNotice}
@@ -336,7 +378,40 @@ export function App() {
           {notice}
         </div>
       )}
-      {editor && <TaskEditor task={editor.task} onClose={() => setEditor(null)} onSave={save} onDelete={setDeleting} />}
+      {editor && (
+        <TaskEditor
+          records={records}
+          onSaveProgress={saveProgress}
+          onDeleteProgress={deleteProgress}
+          task={editor.task}
+          onClose={() => setEditor(null)}
+          onSave={save}
+          onDelete={setDeleting}
+        />
+      )}
+      {contextMenu && (
+        <TaskContextMenu
+          {...contextMenu}
+          hasToday={records.some((record) => record.task_id === contextMenu.task.id && record.date === currentDay)}
+          onClose={closeContextMenu}
+          onRecord={() => {
+            setProgressEditor({ task: contextMenu.task, date: currentDay });
+            setContextMenu(null);
+          }}
+        />
+      )}
+      {progressEditor && (
+        <ProgressDialog
+          tasks={tasks}
+          records={records}
+          taskId={progressEditor.task.id}
+          date={progressEditor.date}
+          onSave={saveProgress}
+          onDelete={deleteProgress}
+          onClose={() => setProgressEditor(null)}
+          active={!settingsOpen}
+        />
+      )}
       {deleting && <DeleteConfirmation task={deleting} onClose={() => setDeleting(null)} onConfirm={removeTask} />}
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
     </div>

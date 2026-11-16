@@ -1121,3 +1121,203 @@ td .assignee-dot {
   margin: 0;
   accent-color: var(--green);
 }
+
+/* Daily progress lives in the existing row; its hit target sits below the draggable bar. */
+.progress-marker {
+  position: absolute;
+  z-index: 3;
+  bottom: 0;
+  width: 18px;
+  height: 16px;
+  transform: translateX(-50%);
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--green);
+  cursor: pointer;
+}
+.progress-marker::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 2px;
+  height: 10px;
+  width: 2px;
+  background: currentColor;
+  border-radius: 2px;
+}
+.progress-marker span {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  top: 1px;
+  left: 6.5px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 1px var(--surface);
+}
+.progress-marker:hover,
+.progress-marker:focus-visible {
+  background: var(--accent-soft);
+  border-radius: 5px;
+}
+.task-context-menu {
+  position: fixed;
+  z-index: 30;
+  min-width: 170px;
+  padding: 5px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 5px 20px var(--shadow-strong);
+  background: var(--surface);
+}
+.task-context-menu button {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 9px 12px;
+  border-radius: 4px;
+  text-align: left;
+  font-size: 12px;
+}
+.task-context-menu button:hover,
+.task-context-menu button:focus-visible {
+  background: var(--hover);
+}
+.editor-tabs {
+  display: flex;
+  gap: 22px;
+  border-bottom: 1px solid var(--line);
+  margin: -8px 0 20px;
+}
+.editor-tabs button {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 10px 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+}
+.editor-tabs button[aria-selected='true'] {
+  border-bottom-color: var(--green);
+  color: var(--green);
+}
+.progress-form .field textarea,
+.progress-form .field select {
+  display: block;
+  width: 100%;
+  margin-top: 7px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px 11px;
+  background: var(--surface-subtle);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+}
+.progress-form .field textarea {
+  resize: vertical;
+  min-height: 96px;
+  max-height: 220px;
+  line-height: 1.7;
+}
+.progress-form .field textarea:focus,
+.progress-form .field select:focus {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+.progress-panel {
+  min-height: 240px;
+}
+.progress-panel-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+}
+.progress-backfill {
+  margin: 8px 0;
+  font-size: 11px;
+}
+.progress-empty {
+  padding: 35px 0;
+  color: var(--muted);
+  text-align: center;
+  font-size: 12px;
+}
+.progress-list {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0;
+  max-height: 320px;
+  overflow: auto;
+}
+.progress-list li + li {
+  border-top: 1px solid var(--line);
+}
+.progress-list button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  text-align: left;
+  gap: 5px 10px;
+  border: 0;
+  padding: 13px 6px;
+  background: transparent;
+}
+.progress-list button:hover {
+  background: var(--hover);
+}
+.progress-list time {
+  font-size: 11px;
+  color: var(--ink-secondary);
+}
+.progress-list span {
+  grid-column: 1;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.progress-list small {
+  grid-column: 2;
+  grid-row: 1;
+  color: var(--muted);
+  font-size: 10px;
+}
+.progress-task-name {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--ink-secondary);
+  overflow-wrap: anywhere;
+}
+.progress-original {
+  border-left: 2px solid var(--line);
+  margin: 0 0 16px;
+  padding: 8px 12px;
+  font-size: 11px;
+  max-height: 130px;
+  overflow: auto;
+}
+.progress-original p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 6px 0 0;
+}
+.progress-delete-confirm {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin: 12px 0;
+  font-size: 11px;
+  color: var(--danger);
+}
+.progress-end-batch {
+  display: block;
+  margin: 14px auto 0;
+  font-size: 11px;
+}
+
+.progress-form .danger-text {
+  background: transparent;
+}

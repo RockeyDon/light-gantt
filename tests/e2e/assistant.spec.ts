@@ -269,3 +269,104 @@ test('compact global input and review work in both themes at minimum window size
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test('natural-language progress confirms targets, handles duplicate names and existing records, and supports skip and retry', async () => {
+  const model = await mockModel();
+  const directory = mkdtempSync(path.join(tmpdir(), 'light-gantt-progress-assistant-'));
+  let application: ElectronApplication | undefined;
+  try {
+    const running = await launch(directory);
+    application = running.application;
+    const page = running.page;
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    const seeded = await page.evaluate(async (day) => {
+      const items = [];
+      for (const [name, assign] of [
+        ['接口联调', '自己'],
+        ['接口联调', '小林'],
+        ['设计评审', '自己'],
+      ]) {
+        const result = await window.tasks.create({ name, assign, start_time: day, end_time: null });
+        if (!result.ok) throw new Error(result.error.message);
+        items.push(result.data);
+      }
+      const existing = await window.progress.save({ task_id: items[0].id, date: day, content: '原有进展', expected_content: null });
+      if (!existing.ok) throw new Error(existing.error.message);
+      return items;
+    }, today());
+    await page.reload();
+    await expect(page.getByRole('button', { name: '新建任务', exact: true }).first()).toBeEnabled();
+    await configure(page, model.url);
+    const input = page.getByRole('textbox', { name: '输入你想安排的事' });
+    const payload = {
+      kind: 'record_progress',
+      records: [
+        { task_query: '接口联调', date: today(), content: '完成鉴权联调' },
+        { task_query: '设计评审', date: addDays(today(), -1), content: '评审通过' },
+        { task_query: '未知任务', date: today(), content: '不应自动保存' },
+      ],
+    };
+    model.reply((response) => response.end(completion(payload)));
+    await input.fill('给接口联调记录完成鉴权联调，设计评审昨天通过');
+    await send(page);
+    const dialog = page.getByRole('dialog', { name: '确认每日进展', exact: true });
+    await expect(dialog.getByText('第 1 / 3 条')).toBeVisible();
+    const selector = dialog.getByRole('combobox', { name: '任务', exact: true });
+    await expect(selector).toHaveValue('');
+    await expect(dialog.getByRole('button', { name: '记录进展', exact: true })).toBeDisabled();
+    await selector.selectOption(seeded[0].id);
+    await expect(dialog.getByText('原有进展', { exact: true })).toBeVisible();
+    expect(
+      await page.evaluate(async () => {
+        const result = await window.progress.list();
+        return result.ok ? result.data : [];
+      }),
+    ).toHaveLength(1);
+    await dialog.getByLabel('进展内容').fill('完成鉴权和异常联调');
+    await dialog.getByRole('button', { name: '保存进展', exact: true }).click();
+    await expect(dialog.getByText('第 2 / 3 条')).toBeVisible();
+    await expect(dialog.getByRole('combobox', { name: '任务', exact: true })).toHaveValue(seeded[2].id);
+    await expect(dialog.getByLabel('日期', { exact: true })).toHaveValue(addDays(today(), -1));
+    // Save failure keeps the draft for retry.
+    execFileSync('python3', [
+      '-c',
+      'import sqlite3,sys; d=sqlite3.connect(sys.argv[1]); d.execute("CREATE TRIGGER reject_progress BEFORE INSERT ON task_progress BEGIN SELECT RAISE(FAIL, \'injected\'); END"); d.commit()',
+      path.join(directory, 'gantt.sqlite'),
+    ]);
+    await dialog.getByRole('button', { name: '记录进展', exact: true }).click();
+    await expect(dialog.getByRole('alert')).toContainText('保存或读取失败');
+    execFileSync('python3', [
+      '-c',
+      'import sqlite3,sys; d=sqlite3.connect(sys.argv[1]); d.execute("DROP TRIGGER reject_progress"); d.commit()',
+      path.join(directory, 'gantt.sqlite'),
+    ]);
+    await dialog.getByRole('button', { name: '记录进展', exact: true }).click();
+    await expect(dialog.getByText('第 3 / 3 条')).toBeVisible();
+    await expect(dialog.getByText('未找到“未知任务”', { exact: false })).toBeVisible();
+    await expect(dialog.getByRole('combobox', { name: '任务', exact: true })).toHaveValue('');
+    await dialog.getByRole('button', { name: '跳过', exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(input).toBeFocused();
+    await expect(page.getByRole('status')).toContainText('已保存 2 条进展，跳过 1 条');
+    const saved = await page.evaluate(async () => {
+      const result = await window.progress.list();
+      return result.ok ? result.data : [];
+    });
+    expect(saved).toHaveLength(2);
+    expect(saved).toContainEqual({ task_id: seeded[0].id, date: today(), content: '完成鉴权和异常联调' });
+    const sent = JSON.stringify(model.requests[0].body);
+    expect(sent).toContain('接口联调');
+    expect(sent).not.toContain('原有进展');
+    expect(sent).not.toContain(seeded[0].id);
+    model.reply((response) => response.end(completion({ kind: 'record_progress', records: [{ task_query: '设计评审', date: '9999-12-31', content: '未来记录' }] })));
+    await input.fill('记录未来进展');
+    await send(page);
+    await expect(page.getByRole('alert')).toContainText('字段或日期有误');
+    expect(errors).toEqual([]);
+  } finally {
+    await application?.close();
+    await model.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});

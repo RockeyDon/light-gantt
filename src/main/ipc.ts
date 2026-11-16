@@ -3,9 +3,16 @@ import { CHANNELS, type Result, type Theme } from '../shared/contracts';
 import { TaskError, type TaskService } from './task-service';
 import { SettingsError, type SettingsService } from './settings-service';
 import { LLMEngine, LLMError } from './llm-engine';
+import type { ProgressService } from './progress-service';
 import { AssistantService } from './assistant-service';
 
-export function registerIPC(service: TaskService, settings: SettingsService, getWindow: () => BrowserWindow | null, applyTheme: (theme: Theme) => void): void {
+export function registerIPC(
+  service: TaskService,
+  progress: ProgressService,
+  settings: SettingsService,
+  getWindow: () => BrowserWindow | null,
+  applyTheme: (theme: Theme) => void,
+): void {
   const handle = (channel: string, operation: (...args: unknown[]) => unknown) => {
     ipcMain.handle(channel, async (event: IpcMainInvokeEvent, ...args: unknown[]): Promise<Result<unknown>> => {
       const window = getWindow();
@@ -22,8 +29,11 @@ export function registerIPC(service: TaskService, settings: SettingsService, get
       }
     });
   };
-  const assistant = new AssistantService(new LLMEngine(settings));
+  const assistant = new AssistantService(new LLMEngine(settings), () => service.list());
   handle(CHANNELS.parseAssistant, (input) => assistant.parse(input));
+  handle(CHANNELS.listProgress, (id) => progress.list(id));
+  handle(CHANNELS.saveProgress, (input) => progress.save(input));
+  handle(CHANNELS.removeProgress, (input) => progress.remove(input));
   handle(CHANNELS.list, (isDone) => service.list(isDone));
   handle(CHANNELS.create, (input) => service.create(input));
   handle(CHANNELS.update, (id, input) => service.update(id, input));

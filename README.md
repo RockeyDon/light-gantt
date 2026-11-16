@@ -49,6 +49,9 @@ pnpm make     # 生成 .dmg 与 .zip
 - 也可在窗口底部输入自然语言，例如“明天小林做设计，持续三天，后天安排开发”。Enter 发送，Shift+Enter 换行；解析后逐条弹窗确认，修改后创建、跳过当前条或结束本次均可。未提及的开始日期默认今天、结束日期留空、负责人默认“自己”。
 - 点击任务名称或条形编辑；拖动条形改期，拖动左右边缘调整日期。整体改期保留已有持续天数。
 - 结束日期留空时，条形延伸到今天；未来任务显示起始标记。整体拖动只修改开始日期，拖动右边缘会设置明确的结束日期。
+- 右键任务行选择“记录今日进展”，当天已有记录时可编辑。时间轴上的小圆点和短竖线代表每日进展，悬停查看摘要、点击编辑；历史记录固定在日期上，任务改期后不会移动。
+- 编辑任务时切换“每日进展”页签，可补记、修改或删除记录。每个任务每天一条，仅记录文字，允许今天和过去日期，不受计划日期限制；已完成任务也可补记。
+- 下方输入也可记录进展，例如“给接口联调记录今天完成鉴权测试”。解析后先确认任务、日期和内容；重名时选择目标，同日已有记录时展示原文，保存后更新。
 - 右侧绿色“✓”用于完成任务。已完成卡片默认只露标题边；拖动标题边向上展开，最多可让进行中卡片仅露标题边。也可用上下方向键调整、Home 收起、End 展开；已完成任务可以恢复、编辑或删除。
 - 点击右上角日历图标打开时间设置，切换日／周刻度、前后翻月或回到今天。点击任务信息中的开始日期可定位较远的任务。
 - 点击右上角齿轮或按 `Cmd+,` 打开配置，填写模型接口地址、API 密钥、模型名称，并选择浅色或深色主题。点击保存后生效，重启后沿用。自然语言解析使用最新保存的模型配置。
@@ -57,22 +60,22 @@ pnpm make     # 生成 .dmg 与 .zip
 ## 数据与后端接口
 
 标准数据位置：`~/Library/Application Support/轻甘特/gantt.sqlite`，实际位置遵循 Electron 的 `app.getPath('userData')`。
-数据库启用 WAL，当前结构版本为 2。开发阶段不迁移旧版数据库：升级旧开发版本时，先退出应用，删除上述数据库及同目录的 `gantt.sqlite-wal`、`gantt.sqlite-shm`，再启动重建。正常启动不会清空数据。备份时先退出应用，再复制整个数据目录。
+数据库启用 WAL，当前结构版本为 2。当前开发版启动时会直接为现有版本 2 数据库补充 `task_progress` 表，不需要删除数据，也不维护历史迁移脚本；版本 1 仍需清理旧开发数据库。正常启动不会清空数据。备份时先退出应用，再复制整个数据目录。
 
 `LIGHT_GANTT_DATA_DIR` 可为开发和测试指定隔离的数据目录。所有日期均使用 `YYYY-MM-DD` 字符串，结束日期包含当天；`null` 表示持续到今天。
 
 后端分层为 IPC 适配层、`TaskService` 和 SQLite。渲染进程不能访问 Node 或数据库，只能通过 preload 暴露的 `window.tasks` 调用以下接口：
 
-| 方法 | 参数 | 成功结果 |
-| --- | --- | --- |
-| `list` | 可选 `isDone: boolean` | 按开始日期、ID 排序的任务数组 |
-| `create` | `{ name, assign, start_time, end_time }` | 新任务，默认未完成 |
-| `update` | `id, patch` | 修改后的任务；patch 可包含上述部分字段 |
-| `remove` | `id` | 无数据 |
-| `setDone` | `id, isDone` | 状态更新后的任务 |
+| 方法      | 参数                                     | 成功结果                               |
+| --------- | ---------------------------------------- | -------------------------------------- |
+| `list`    | 可选 `isDone: boolean`                   | 按开始日期、ID 排序的任务数组          |
+| `create`  | `{ name, assign, start_time, end_time }` | 新任务，默认未完成                     |
+| `update`  | `id, patch`                              | 修改后的任务；patch 可包含上述部分字段 |
+| `remove`  | `id`                                     | 无数据                                 |
+| `setDone` | `id, isDone`                             | 状态更新后的任务                       |
 
 所有调用返回 `Promise<Result<T>>`：成功为 `{ ok: true, data }`，失败为 `{ ok: false, error: { code, message } }`。
-任务及配置错误码为 `INVALID_INPUT`、`NOT_FOUND` 和 `STORAGE_ERROR`。修改结束日期时，传 `null` 表示清空，不传表示保留原值；不接受未知字段和显式 `undefined` 更新。
+任务及配置错误码为 `INVALID_INPUT`、`NOT_FOUND` 和 `STORAGE_ERROR`；进展更新或删除遇到过期内容时返回 `CONFLICT`，避免意外覆盖。修改结束日期时，传 `null` 表示清空，不传表示保留原值；不接受未知字段和显式 `undefined` 更新。
 
 其他输入适配器同样可以通过已有接口修改任务：
 
@@ -94,8 +97,18 @@ if (!result.ok) throw new Error(result.error.message);
 
 ## 自然语言输入
 
-`window.assistant.parse(text)` 返回 `Promise<Result<AssistantResult>>`：`{ kind: 'create_tasks', tasks: CreateTask[] }` 表示待确认草稿，`{ kind: 'unsupported', message }` 表示本轮不支持的意图。解析不写入数据库，只有用户逐条确认后才调用 `tasks.create`。草稿不持久化，关闭应用即丢弃；本轮不支持自然语言修改、删除或完成已有任务。
+`window.assistant.parse(text)` 返回 `Promise<Result<AssistantResult>>`：`{ kind: 'create_tasks', tasks: CreateTask[] }` 表示待确认草稿，`{ kind: 'record_progress', records: ProgressDraft[] }` 表示待确认进展，`{ kind: 'unsupported', message }` 表示本轮不支持的意图。解析不写入数据库，只有用户逐条确认后才调用 `tasks.create` 或 `progress.save`。草稿不持久化，关闭应用即丢弃；本轮不支持自然语言修改任务字段、删除、完成已有任务，也不混合执行新建任务和记录进展。
 
-主进程通过内置提示词调用 `POST {LLM_BASE_URL}/chat/completions`。接口地址填写到基础路径，例如 `https://api.example.com/v1`；请求携带 Bearer 密钥、模型名称、`stream: false` 和 `enable_thinking: false`，模型及接口需支持关闭思考参数。请求超时为 60 秒，不自动重试，不上传已有任务，不记录密钥、输入原文或原始模型响应。
+主进程通过内置提示词调用 `POST {LLM_BASE_URL}/chat/completions`。接口地址填写到基础路径，例如 `https://api.example.com/v1`；请求携带 Bearer 密钥、模型名称、`stream: false` 和 `enable_thinking: false`，模型及接口需支持关闭思考参数。请求超时为 60 秒，不自动重试，仅提供已有任务的名称、负责人、开始日期和完成状态以匹配目标，不上传历史进展全文，不记录密钥、输入原文或原始模型响应。
 
 提示词包含本机日期、星期和时区，由模型理解相对日期；后端对返回的 JSON、字段和日期范围进行校验，确认弹窗允许进一步修正。新增错误码为 `LLM_CONFIG_MISSING`、`LLM_REQUEST_FAILED`、`LLM_RESPONSE_INVALID`；缺配置时可直接从提示打开配置。
+
+每日进展通过 `window.progress` 操作，返回格式同任务接口：
+
+| 方法     | 参数                                           | 成功结果                              |
+| -------- | ---------------------------------------------- | ------------------------------------- |
+| `list`   | 可选 `taskId`                                  | 按日期倒序的进展数组                  |
+| `save`   | `{ task_id, date, content, expected_content }` | 保存后的 `{ task_id, date, content }` |
+| `remove` | `{ task_id, date, content }`                   | 无数据                                |
+
+新增记录时 `expected_content` 必须为 `null`，更新时必须是读取时的原文；不一致则报冲突。删除同样核对原文。数据库以任务 ID 和日期作为联合主键，删除任务时级联删除进展。

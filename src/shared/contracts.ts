@@ -9,7 +9,7 @@ export interface Task {
 
 export type CreateTask = Pick<Task, 'name' | 'start_time' | 'end_time' | 'assign'>;
 export type UpdateTask = Partial<CreateTask>;
-export type ErrorCode = 'INVALID_INPUT' | 'NOT_FOUND' | 'STORAGE_ERROR' | 'LLM_CONFIG_MISSING' | 'LLM_REQUEST_FAILED' | 'LLM_RESPONSE_INVALID';
+export type ErrorCode = 'INVALID_INPUT' | 'CONFLICT' | 'NOT_FOUND' | 'STORAGE_ERROR' | 'LLM_CONFIG_MISSING' | 'LLM_REQUEST_FAILED' | 'LLM_RESPONSE_INVALID';
 export type Result<T> = { ok: true; data: T } | { ok: false; error: { code: ErrorCode; message: string } };
 
 export type Theme = 'light' | 'dark';
@@ -27,7 +27,27 @@ export interface SettingsAPI {
   onOpen(listener: () => void): () => void;
 }
 
-export type AssistantResult = { kind: 'create_tasks'; tasks: CreateTask[] } | { kind: 'unsupported'; message: string };
+export interface DailyProgress {
+  task_id: string;
+  date: string;
+  content: string;
+}
+export interface SaveProgress extends DailyProgress {
+  expected_content: string | null;
+}
+export interface ProgressAPI {
+  list(taskId?: string): Promise<Result<DailyProgress[]>>;
+  save(input: SaveProgress): Promise<Result<DailyProgress>>;
+  remove(input: DailyProgress): Promise<Result<void>>;
+}
+export interface ProgressDraft {
+  task_query: string;
+  date: string;
+  content: string;
+  candidates: string[];
+}
+
+export type AssistantResult = { kind: 'record_progress'; records: ProgressDraft[] } | { kind: 'create_tasks'; tasks: CreateTask[] } | { kind: 'unsupported'; message: string };
 export interface AssistantAPI {
   parse(text: string): Promise<Result<AssistantResult>>;
 }
@@ -42,6 +62,9 @@ export interface TaskAPI {
 }
 
 export const CHANNELS = {
+  listProgress: 'progress:list',
+  saveProgress: 'progress:save',
+  removeProgress: 'progress:remove',
   list: 'tasks:list',
   create: 'tasks:create',
   update: 'tasks:update',

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { Task } from '../../src/shared/contracts';
 import { AssistantService, taskPrompt } from '../../src/main/assistant-service';
 
 const task = { name: '设计评审', assign: '自己', start_time: '2026-11-13', end_time: null };
@@ -51,5 +52,42 @@ describe('AssistantService', () => {
     JSON.stringify({ kind: 'unsupported', message: '' }),
   ])('rejects malformed model output as a whole: %s', async (output) => {
     await expect(new AssistantService({ complete: vi.fn().mockResolvedValue(output) }).parse('安排任务')).rejects.toMatchObject({ code: 'LLM_RESPONSE_INVALID' });
+  });
+});
+
+describe('progress intent', () => {
+  const tasks: Task[] = [
+    { ...task, id: 'a', is_done: false, name: '接口联调', assign: '自己' },
+    { ...task, id: 'b', is_done: true, name: '接口联调', assign: '小林' },
+    { ...task, id: 'c', is_done: false, name: '设计评审' },
+  ];
+  it('matches exact or partial names without trusting model IDs and includes minimal task context', async () => {
+    const records = ['接口联调', '设计', '不存在'].map((task_query) => ({ task_query, date: '2026-11-13', content: '完成初稿' }));
+    const complete = vi.fn().mockResolvedValue(JSON.stringify({ kind: 'record_progress', records }));
+    const result = await new AssistantService({ complete }, () => tasks).parse('记录进展');
+    expect(result).toEqual({
+      kind: 'record_progress',
+      records: [
+        { ...records[0], candidates: ['a', 'b'] },
+        { ...records[1], candidates: ['c'] },
+        { ...records[2], candidates: [] },
+      ],
+    });
+    const prompt = complete.mock.calls[0][0] as string;
+    expect(prompt).toContain('接口联调');
+    expect(prompt).not.toContain('"id":');
+    expect(prompt).toContain('未提日期默认今天');
+    expect(prompt).toContain('混合了新建与进展');
+  });
+
+  it.each([
+    { task_query: '设计', date: '9999-12-31', content: '完成' },
+    { task_query: '设计', date: '2026-02-30', content: '完成' },
+    { task_query: '', date: '2026-11-13', content: '完成' },
+    { task_query: '设计', date: '2026-11-13', content: '' },
+    { task_query: '设计', date: '2026-11-13', content: '完成', candidates: ['invented'] },
+  ])('rejects invalid progress output: %j', async (record) => {
+    const complete = vi.fn().mockResolvedValue(JSON.stringify({ kind: 'record_progress', records: [record] }));
+    await expect(new AssistantService({ complete }).parse('记录进展')).rejects.toMatchObject({ code: 'LLM_RESPONSE_INVALID' });
   });
 });

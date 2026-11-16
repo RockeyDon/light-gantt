@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, Menu, nativeTheme, safeStorage, type MenuIt
 import path from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { openDatabase } from './database';
+import { ProgressService } from './progress-service';
 import { TaskService } from './task-service';
 import { registerIPC } from './ipc';
 import { SettingsService } from './settings-service';
@@ -101,7 +102,7 @@ else {
       mkdirSync(app.getPath('userData'), { recursive: true });
       database = openDatabase(path.join(app.getPath('userData'), 'gantt.sqlite'));
       settings = new SettingsService(database, safeStorage);
-      registerIPC(new TaskService(database), settings, () => mainWindow, applyTheme);
+      registerIPC(new TaskService(database), new ProgressService(database), settings, () => mainWindow, applyTheme);
       Menu.setApplicationMenu(applicationMenu());
       createWindow();
       app.on('activate', () => {

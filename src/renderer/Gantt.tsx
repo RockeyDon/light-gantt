@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent, type UIEvent } from 'react';
-import type { Task, UpdateTask } from '../shared/contracts';
+import type { DailyProgress, Task, UpdateTask } from '../shared/contracts';
 import { addDays, chineseDate, daysBetween, shiftTask, shortDate, taskRange, weekDay, type DragMode } from '../shared/dates';
 import { Icon } from './icons';
 import { safeShift, timelineCount, type TimelineView } from './TimelineControls';
@@ -15,6 +15,9 @@ type Preview = { id: string; start_time: string; end_time: string | null };
 
 export function Gantt({
   tasks,
+  records,
+  onProgress,
+  onContextMenu,
   view,
   onViewChange,
   collapsed,
@@ -27,6 +30,9 @@ export function Gantt({
   onDone,
 }: {
   tasks: Task[];
+  records: DailyProgress[];
+  onProgress: (task: Task, date: string) => void;
+  onContextMenu: (task: Task, x: number, y: number) => void;
   view: TimelineView;
   onViewChange: (view: TimelineView) => void;
   collapsed: boolean;
@@ -228,7 +234,15 @@ export function Gantt({
               const barWidth = Math.max(dayWidth - 10, Math.min(width, endX) - Math.max(0, startX) - 10);
               const overdue = task.end_time !== null && task.end_time < today;
               return (
-                <div className={`gantt-row gantt-grid ${preview?.id === task.id ? 'is-dragging' : ''}`} key={task.id} data-testid={`task-${task.id}`}>
+                <div
+                  className={`gantt-row gantt-grid ${preview?.id === task.id ? 'is-dragging' : ''}`}
+                  key={task.id}
+                  data-testid={`task-${task.id}`}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    onContextMenu(task, event.clientX, event.clientY);
+                  }}
+                >
                   <div className="task-info sticky-left">
                     <button className="task-name" onClick={() => onEdit(task)} disabled={busy} title={task.name}>
                       {task.name}
@@ -285,6 +299,23 @@ export function Gantt({
                           {endX <= width && <span data-edge="end" className="resize-handle end" aria-hidden="true" />}
                         </button>
                       )}
+                      {records
+                        .filter((record) => record.task_id === task.id && record.date >= anchor && record.date <= end)
+                        .map((record) => (
+                          <button
+                            key={record.date}
+                            type="button"
+                            className="progress-marker"
+                            data-testid={`progress-${task.id}-${record.date}`}
+                            disabled={busy}
+                            style={{ left: (daysBetween(anchor, record.date) + 0.5) * dayWidth }}
+                            aria-label={`${task.name}，${chineseDate(record.date)}的进展`}
+                            title={`${chineseDate(record.date)} · ${record.content.length > 200 ? record.content.slice(0, 200) + '…' : record.content}`}
+                            onClick={() => onProgress(task, record.date)}
+                          >
+                            <span aria-hidden="true" />
+                          </button>
+                        ))}
                       {!visible && (
                         <button className="offscreen-task" style={endX <= 0 ? { left: 10 } : { right: 10 }} onClick={() => focus(task.start_time)}>
                           {endX <= 0 ? '← 定位任务' : '定位任务 →'}

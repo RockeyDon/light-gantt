@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
-import type { CreateTask, Task } from '../shared/contracts';
+import type { CreateTask, DailyProgress, SaveProgress, Task } from '../shared/contracts';
 import { today } from '../shared/dates';
+import { discardProgress, ProgressPanel } from './ProgressEditor';
 import { Icon } from './icons';
 
 export function TaskEditor({
@@ -12,7 +13,13 @@ export function TaskEditor({
   progress,
   onEndBatch,
   active = true,
+  records = [],
+  onSaveProgress,
+  onDeleteProgress,
 }: {
+  records?: DailyProgress[];
+  onSaveProgress?: (input: SaveProgress) => Promise<void>;
+  onDeleteProgress?: (record: DailyProgress) => Promise<void>;
   task: Task | null;
   onClose: () => void;
   onSave: (input: CreateTask) => Promise<void>;
@@ -31,6 +38,12 @@ export function TaskEditor({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const saveLock = useRef(false);
+  const [tab, setTab] = useState<'task' | 'progress'>('task');
+  const [progressDirty, setProgressDirty] = useState(false);
+  const [progressBusy, setProgressBusy] = useState(false);
+  function close() {
+    if (!saveLock.current && !progressBusy && (!progressDirty || discardProgress())) onClose();
+  }
 
   useEffect(() => {
     const element = dialog.current!;
@@ -62,71 +75,113 @@ export function TaskEditor({
       aria-labelledby={titleId}
       onCancel={(event) => {
         event.preventDefault();
-        if (!saveLock.current) onClose();
+        close();
       }}
     >
-      <form
-        onSubmit={(event) => {
-          void submit(event);
-        }}
-      >
+      <div>
         <div className="modal-heading">
           <div>
             <span className="eyebrow">{progress ?? 'TASK DETAILS'}</span>
             <h2 id={titleId}>{task ? '编辑任务' : draft ? '确认新任务' : '安排一个新任务'}</h2>
           </div>
-          <button type="button" className="icon-button" aria-label="关闭编辑" disabled={saving} onClick={onClose}>
+          <button type="button" className="icon-button" aria-label="关闭编辑" disabled={saving || progressBusy} onClick={close}>
             <Icon name="close" />
           </button>
         </div>
-        <label className="field">
-          任务名称 <span className="required">*</span>
-          <input name="name" autoFocus required value={name} placeholder="这次准备做什么？" onChange={(event) => setName(event.target.value)} disabled={saving} />
-        </label>
-        <label className="field">
-          负责人
-          <input name="assign" value={assign} placeholder="填写姓名，可留空" onChange={(event) => setAssign(event.target.value)} disabled={saving} />
-        </label>
-        <div className="date-fields">
-          <label className="field">
-            开始日期 <span className="required">*</span>
-            <input name="start_time" type="date" min="0001-01-01" max="9999-12-31" required value={start} onChange={(event) => setStart(event.target.value)} disabled={saving} />
-          </label>
-          <label className="field">
-            结束日期
-            <input name="end_time" type="date" min={start || '0001-01-01'} max="9999-12-31" value={end} onChange={(event) => setEnd(event.target.value)} disabled={saving} />
-          </label>
-        </div>
-        <p className="field-hint">结束日期留空时，任务将持续到今天；未来任务显示为起始标记。</p>
-        {error && (
-          <p role="alert" className="form-error">
-            <Icon name="warning" size={16} />
-            {error}
-          </p>
-        )}
-        <div className="modal-footer">
-          {task && (
-            <button type="button" className="button danger-text" disabled={saving} onClick={() => onDelete(task)}>
-              <Icon name="trash" size={16} />
-              删除任务
+        {task && (
+          <div className="editor-tabs" role="tablist" aria-label="任务编辑内容">
+            <button
+              type="button"
+              role="tab"
+              id={`${titleId}-task-tab`}
+              aria-selected={tab === 'task'}
+              aria-controls={`${titleId}-task-panel`}
+              disabled={progressBusy}
+              onClick={() => {
+                if (!progressDirty || discardProgress()) {
+                  setProgressDirty(false);
+                  setTab('task');
+                }
+              }}
+            >
+              任务信息
             </button>
-          )}
-          {onEndBatch && (
-            <button type="button" className="text-button" disabled={saving} onClick={onEndBatch}>
-              结束本次
-            </button>
-          )}
-          <div className="modal-actions">
-            <button type="button" className="button secondary" disabled={saving} onClick={onClose}>
-              {draft ? '跳过' : '取消'}
-            </button>
-            <button type="submit" className="button primary" disabled={saving}>
-              {saving ? '保存中…' : task ? '保存修改' : '创建任务'}
-              <Icon name="arrow" size={16} />
+            <button
+              type="button"
+              role="tab"
+              id={`${titleId}-progress-tab`}
+              aria-selected={tab === 'progress'}
+              aria-controls={`${titleId}-progress-panel`}
+              disabled={saving}
+              onClick={() => setTab('progress')}
+            >
+              每日进展
             </button>
           </div>
-        </div>
-      </form>
+        )}
+        <form
+          id={`${titleId}-task-panel`}
+          role={task ? 'tabpanel' : undefined}
+          aria-labelledby={task ? `${titleId}-task-tab` : undefined}
+          hidden={tab !== 'task'}
+          onSubmit={(event) => {
+            void submit(event);
+          }}
+        >
+          <label className="field">
+            任务名称 <span className="required">*</span>
+            <input name="name" autoFocus required value={name} placeholder="这次准备做什么？" onChange={(event) => setName(event.target.value)} disabled={saving} />
+          </label>
+          <label className="field">
+            负责人
+            <input name="assign" value={assign} placeholder="填写姓名，可留空" onChange={(event) => setAssign(event.target.value)} disabled={saving} />
+          </label>
+          <div className="date-fields">
+            <label className="field">
+              开始日期 <span className="required">*</span>
+              <input name="start_time" type="date" min="0001-01-01" max="9999-12-31" required value={start} onChange={(event) => setStart(event.target.value)} disabled={saving} />
+            </label>
+            <label className="field">
+              结束日期
+              <input name="end_time" type="date" min={start || '0001-01-01'} max="9999-12-31" value={end} onChange={(event) => setEnd(event.target.value)} disabled={saving} />
+            </label>
+          </div>
+          <p className="field-hint">结束日期留空时，任务将持续到今天；未来任务显示为起始标记。</p>
+          {error && (
+            <p role="alert" className="form-error">
+              <Icon name="warning" size={16} />
+              {error}
+            </p>
+          )}
+          <div className="modal-footer">
+            {task && (
+              <button type="button" className="button danger-text" disabled={saving} onClick={() => onDelete(task)}>
+                <Icon name="trash" size={16} />
+                删除任务
+              </button>
+            )}
+            {onEndBatch && (
+              <button type="button" className="text-button" disabled={saving} onClick={onEndBatch}>
+                结束本次
+              </button>
+            )}
+            <div className="modal-actions">
+              <button type="button" className="button secondary" disabled={saving || progressBusy} onClick={close}>
+                {draft ? '跳过' : '取消'}
+              </button>
+              <button type="submit" className="button primary" disabled={saving}>
+                {saving ? '保存中…' : task ? '保存修改' : '创建任务'}
+                <Icon name="arrow" size={16} />
+              </button>
+            </div>
+          </div>
+        </form>
+        {task && tab === 'progress' && onSaveProgress && onDeleteProgress && (
+          <div role="tabpanel" id={`${titleId}-progress-panel`} aria-labelledby={`${titleId}-progress-tab`}>
+            <ProgressPanel task={task} records={records} onSave={onSaveProgress} onDelete={onDeleteProgress} onDirtyChange={setProgressDirty} onBusyChange={setProgressBusy} />
+          </div>
+        )}
+      </div>
     </dialog>
   );
 }

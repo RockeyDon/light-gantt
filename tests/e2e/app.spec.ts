@@ -274,7 +274,7 @@ test('compact cards expose all tasks, resize to both edges, and keep dates clear
     // Both keyboard and pointer resizing reach the same limits.
     await separator.focus();
     await page.keyboard.press('End');
-    await expect.poll(async () => Number(await separator.getAttribute('aria-valuenow'))).toBe(Number(await separator.getAttribute('aria-valuemax')));
+    await expect.poll(async () => Number(await separator.getAttribute('aria-valuenow')) - Number(await separator.getAttribute('aria-valuemax'))).toBe(0);
     const activeBox = await active.boundingBox();
     const completedBox = await completed.boundingBox();
     expect(completedBox!.y - activeBox!.y).toBe(36);
@@ -286,7 +286,7 @@ test('compact cards expose all tasks, resize to both edges, and keep dates clear
 
     await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(860, 600));
     await expect.poll(() => page.evaluate(() => window.innerWidth)).toBe(860);
-    await expect.poll(async () => Number(await separator.getAttribute('aria-valuenow'))).toBe(Number(await separator.getAttribute('aria-valuemax')));
+    await expect.poll(async () => Number(await separator.getAttribute('aria-valuenow')) - Number(await separator.getAttribute('aria-valuemax'))).toBe(0);
     await separator.focus();
     await page.keyboard.press('Home');
     await page.getByTestId('gantt-scroll').evaluate((element) => {
@@ -310,7 +310,7 @@ test('compact cards expose all tasks, resize to both edges, and keep dates clear
     await page.mouse.down();
     await page.mouse.move(handle!.x + handle!.width / 2, 0, { steps: 10 });
     await page.mouse.up();
-    await expect.poll(async () => Number(await separator.getAttribute('aria-valuenow'))).toBe(Number(await separator.getAttribute('aria-valuemax')));
+    await expect.poll(async () => Number(await separator.getAttribute('aria-valuenow')) - Number(await separator.getAttribute('aria-valuemax'))).toBe(0);
     const expandedHandle = await separator.boundingBox();
     await page.mouse.move(expandedHandle!.x + expandedHandle!.width / 2, expandedHandle!.y + expandedHandle!.height / 2);
     await page.mouse.down();
